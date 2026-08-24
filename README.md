@@ -1,2 +1,32 @@
-# interplan-homologacao
-Esse repositório contém os códigos utilizados para realizar comparações entre tabelas geradas pelo Interplan na versão atual e na versão a homologar para ser utilizando no processo de Homologação do Interplan.
+# Ferramenta de Homologação do Interplan
+
+Ferramenta para comparação automática das tabelas exportadas do Interplan entre a versão atual e a versão a homologar.
+
+## Arquivos necessários
+
+Copiar para a mesma pasta:
+
+- Cabos_Atual.CSV
+- Cabos_a_Homologar.CSV
+- Curvas_Atual.CSV
+- Curvas_a_Homologar.CSV
+
+## Execução
+
+Executar:
+
+executar.bat
+
+## Resultado
+
+Será gerado o arquivo:
+
+Relatorio_Homologacao.xlsx
+
+## Verificações realizadas
+
+- Validação de estrutura das tabelas
+- Registros incluídos
+- Registros removidos
+- Registros alterados
+- Resumo consolidado das diferenças
