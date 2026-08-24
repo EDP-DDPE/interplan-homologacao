@@ -1,0 +1,22 @@
+# Ambiente virtual
+venv/
+.venv/
+
+# Python
+__pycache__/
+*.pyc
+
+# Arquivos gerados
+Relatorio_Homologacao.xlsx
+
+# CSVs de homologação
+Cabos_Atual.CSV
+Cabos_a_Homologar.CSV
+Curvas_Atual.CSV
+Curvas_a_Homologar.CSV
+
+# VS Code
+.vscode/
+
+# JetBrains
+.idea/
