@@ -1,6 +1,6 @@
 import re
 from pathlib import Path
-
+import numpy as np
 import pandas as pd
 from openpyxl.utils import get_column_letter
 
@@ -25,14 +25,7 @@ TABELAS = [
         "tipo": "secionado",
         "arquivo_atual": "Curvas_Atual.CSV",
         "arquivo_homologar": "Curvas_a_Homologar.CSV",
-        # chave de comparação por seção
-        "chaves": {
-            "CATEGORIA": ["ID"],
-            "CURVA_TIPICA": ["ID"],
-            "CURVA_PONTOS": ["Curva_ID", "Hora"],
-        },
-        # dump das seções de pontos é grande; deixe False se não quiser as
-        # abas com os dados brutos das duas versões dessa tabela.
+        "chave": ["Nome","Classificacao_Dia"],
         "exportar_dados": True,
     },
 ]
@@ -41,13 +34,13 @@ ARQUIVO_SAIDA = "Relatorio_Homologacao.xlsx"
 CSV_SEP = ";"
 CSV_ENCODING = "latin1"
 
-# Nomes de coluna para cada seção do arquivo seccionado (ajuste conforme a
-# semântica do seu sistema; o que importa para a comparação são as chaves).
+# Após análises dos dados e comparações com a exibição do INTERPLAN foi identificado os seguintes nomes para as colunas
+# Classificacao_dia = 1 -> DU (Dia Útil); 2 -> SA (Sábado); 3 -> DO (Domingo); 4 -> Agregada
 COLUNAS_SECOES = {
-    "CATEGORIA": ["ID", "Nome", "Campo3", "Faixa_Min", "Faixa_Max",
-                  "Num_Pontos", "Campo7", "Campo8", "Participacao", "Campo10"],
-    "CURVA_TIPICA": ["ID", "Ref_Categoria", "Valor", "Campo4", "Fp"],
-    "CURVA_PONTOS": ["Curva_ID", "Hora", "P_pu", "Desvio_P", "Campo5", "Campo6"],
+    "CATEGORIA": ["ID_CURVA_TIPICA", "Nome", "Classe Consumidor", "Faixa_Min", "Faixa_Max",
+                  "Num_Pontos", "Curva_MT_BT", "Curva_Media_Minima", "Participacao_de_Mercado", "Campo10"],
+    "CURVA_TIPICA": ["ID_CURVA_TIPICA", "Classificacao_Dia", "Nao_Identificado", "Tipo_Curva", "Fator_Potencia"],
+    "CURVA_PONTOS": ["ID_CURVA_TIPICA", "Pontos_Curva", "P_pu", "Desvio_P", "Q_pu", "Desvio_Q_pu"],
 }
 
 
@@ -64,6 +57,71 @@ def ler_arquivo(caminho):
     except pd.errors.EmptyDataError:
         raise ValueError(f"Arquivo vazio: {caminho}")
 
+
+def unir_secoes_curvas(secoes: dict) -> pd.DataFrame:
+
+    categoria = secoes["CATEGORIA"]
+    curva_tipica = secoes["CURVA_TIPICA"]
+    curva_pontos = secoes["CURVA_PONTOS"]
+
+    print("CATEGORIA (TESTE):")
+    print(categoria)
+    print("CURVA TÍPICA (TESTE):")
+    print(curva_tipica)
+    print("CURVA PONTOS (TESTE):")
+    print(curva_pontos)
+
+    # Identificando primeiro ID de curvas de geração
+    curvas_G = categoria[categoria["Campo10"].astype(str) != "0"]
+    menor_id_curvas_G = curvas_G["ID_CURVA_TIPICA"].astype(int).min()
+
+    # Calculando o ID correspondente a tabela de categoria em curva_tipica
+    curva_tipica["ID_Categoria"] = np.where(
+        curva_tipica["ID_CURVA_TIPICA"].astype(int) < menor_id_curvas_G,
+        curva_tipica["Tipo_Curva"].astype(int) * 4,
+        curva_tipica["ID_CURVA_TIPICA"].astype(int)
+    )
+
+    curva_tipica["ID_CURVA_TIPICA"] = curva_tipica["ID_CURVA_TIPICA"].astype(int)
+    curva_pontos["ID_CURVA_TIPICA"] = curva_pontos["ID_CURVA_TIPICA"].astype(int)
+    categoria["ID_CURVA_TIPICA"] = categoria["ID_CURVA_TIPICA"].astype(int)
+
+    df = curva_pontos.merge(
+        curva_tipica[
+            [
+                "ID_CURVA_TIPICA",
+                "Classificacao_Dia",
+                "Tipo_Curva",
+                "Fator_Potencia",
+                "ID_Categoria",
+            ]
+        ],
+        on="ID_CURVA_TIPICA",
+        how="left"
+    )
+
+
+    df = df.merge(
+        categoria[
+            [
+                "ID_CURVA_TIPICA",
+                "Nome",
+                "Classe Consumidor",
+                "Faixa_Min",
+                "Faixa_Max",
+                "Participacao_de_Mercado",
+            ]
+        ].rename(columns={"ID_CURVA_TIPICA": "ID_Categoria"}),  # <- evita colisão de nome
+        on="ID_Categoria",   # <- agora é um merge normal, sem left_on/right_on
+        how="left"
+    )
+
+
+    print("df:")
+    print(df)
+    df.info()
+
+    return df
 
 def parse_arquivo_secionado(caminho):
     """
@@ -118,6 +176,7 @@ def montar_chave(df, colunas_chave):
     """Concatena as colunas-chave em uma única string 'valor1|valor2|...'."""
     return (
         df[colunas_chave]
+        .fillna("")
         .astype(str)
         .apply(lambda col: col.str.strip())
         .agg("|".join, axis=1)
@@ -276,6 +335,14 @@ def comparar_unidade(nome, df_atual, df_homologar, chave_cols):
         "export_homologar": export_homologar,
     }
 
+def normalizar_df(df):
+    return (
+        df
+        .replace(r'^\s*$', pd.NA, regex=True)
+        .fillna("")
+        .astype(str)
+        .apply(lambda col: col.str.strip())
+    )
 
 def expandir_config(config):
     """
@@ -289,18 +356,20 @@ def expandir_config(config):
     if tipo == "csv_plano":
         df_a = ler_arquivo(config["arquivo_atual"])
         df_h = ler_arquivo(config["arquivo_homologar"])
+        df_a = normalizar_df(df_a)
+        df_h = normalizar_df(df_h)
         return [(nome_base, df_a, df_h, config["chave"])]
 
     if tipo == "secionado":
         secoes_a = parse_arquivo_secionado(config["arquivo_atual"])
         secoes_h = parse_arquivo_secionado(config["arquivo_homologar"])
-        unidades = []
-        for secao, chave in config["chaves"].items():
-            if secao not in secoes_a or secao not in secoes_h:
-                print(f"[AVISO] Seção '{secao}' ausente em um dos arquivos; ignorada.")
-                continue
-            unidades.append((f"{nome_base}_{secao}", secoes_a[secao], secoes_h[secao], chave))
-        return unidades
+
+        df_a = unir_secoes_curvas(secoes_a)
+        df_h = unir_secoes_curvas(secoes_h)
+        df_a = normalizar_df(df_a)
+        df_h = normalizar_df(df_h)
+
+        return [(nome_base, df_a, df_h, config["chave"])]
 
     raise ValueError(f"Tipo de config desconhecido: {tipo}")
 
