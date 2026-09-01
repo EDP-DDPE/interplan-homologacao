@@ -41,6 +41,13 @@ TABELAS = [
         "arquivo_atual": "DemandaSemCorrecao_Atual.CSV",
         "arquivo_homologar": "DemandaSemCorrecao_a_Homologar.CSV",
         "chave": ["Matrícula"],
+    },
+    {
+        "nome": "DemandaComCorrecao",
+        "tipo": "csv_plano",
+        "arquivo_atual": "DemandaComCorrecao_Atual.CSV",
+        "arquivo_homologar": "DemandaComCorrecao_a_Homologar.CSV",
+        "chave": ["Matrícula"],
     }
 ]
 
