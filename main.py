@@ -28,6 +28,13 @@ TABELAS = [
         "chave": ["Nome","Classificacao_Dia"],
         "exportar_dados": True,
     },
+    {
+        "nome": "Relatorio_ANEEL",
+        "tipo": "csv_plano",
+        "arquivo_atual": "Relatorio_ANEEL_Atual.CSV",
+        "arquivo_homologar": "Relatorio_ANEEL_a_Homologar.CSV",
+        "chave": ["Matrícula"],
+    }
 ]
 
 ARQUIVO_SAIDA = "Relatorio_Homologacao.xlsx"
@@ -63,13 +70,6 @@ def unir_secoes_curvas(secoes: dict) -> pd.DataFrame:
     categoria = secoes["CATEGORIA"]
     curva_tipica = secoes["CURVA_TIPICA"]
     curva_pontos = secoes["CURVA_PONTOS"]
-
-    print("CATEGORIA (TESTE):")
-    print(categoria)
-    print("CURVA TÍPICA (TESTE):")
-    print(curva_tipica)
-    print("CURVA PONTOS (TESTE):")
-    print(curva_pontos)
 
     # Identificando primeiro ID de curvas de geração
     curvas_G = categoria[categoria["Campo10"].astype(str) != "0"]
@@ -115,11 +115,6 @@ def unir_secoes_curvas(secoes: dict) -> pd.DataFrame:
         on="ID_Categoria",   # <- agora é um merge normal, sem left_on/right_on
         how="left"
     )
-
-
-    print("df:")
-    print(df)
-    df.info()
 
     return df
 
@@ -251,12 +246,36 @@ def verificar_novos_removidos(nome, df_atual, df_homologar):
     return resumo, diferencas
 
 
+def _para_numero(serie: pd.Series) -> pd.Series:
+    """Converte uma série de strings para float, aceitando formato BR
+    (vírgula decimal, com ou sem separador de milhar em ponto).
+    Retorna NaN onde não for possível converter."""
+    s = serie.astype(str).str.strip()
+    tem_virgula = s.str.contains(',', regex=False)
+    tem_ponto = s.str.contains('.', regex=False)
+
+    convertido = s.copy()
+
+    # Só vírgula -> decimal BR simples (ex.: "22,355")
+    so_virgula = tem_virgula & ~tem_ponto
+    convertido = convertido.where(~so_virgula, convertido.str.replace(',', '.', regex=False))
+
+    # Vírgula e ponto -> BR com milhar (ex.: "1.234,56")
+    ambos = tem_virgula & tem_ponto
+    convertido = convertido.where(
+        ~ambos,
+        convertido.str.replace('.', '', regex=False).str.replace(',', '.', regex=False)
+    )
+
+    return pd.to_numeric(convertido, errors='coerce')
+
+
 def detectar_alteracoes(nome, df_atual, df_homologar, chave_cols):
     """
     Compara, registro a registro (chaves em comum), todas as colunas em comum
     e retorna as diferenças em formato longo. Vetorizado por coluna.
     """
-    cols_saida = ["Tabela", "CHAVE"] + chave_cols + ["Coluna", "Valor_Atual", "Valor_Homologar"]
+    cols_saida = ["Tabela", "CHAVE", "Chave_Campos", "Coluna", "Valor_Atual", "Valor_Homologar"]
 
     at = df_atual.drop_duplicates("CHAVE").set_index("CHAVE")
     ho = df_homologar.drop_duplicates("CHAVE").set_index("CHAVE")
@@ -274,10 +293,24 @@ def detectar_alteracoes(nome, df_atual, df_homologar, chave_cols):
     ]
 
     registros = []
+    TOL_REL = 1e-6   # tolerância relativa
+    TOL_ABS = 1e-9   # tolerância absoluta
+
     for col in colunas_comparacao:
         a = at[col].astype(str)
         h = ho[col].astype(str)
         mask = a != h
+
+        # Refina: onde ambos os valores forem numéricos, compara com tolerância
+        a_num = _para_numero(a)
+        h_num = _para_numero(h)
+        ambos_num = a_num.notna() & h_num.notna()
+        if ambos_num.any():
+            iguais_numerico = np.isclose(
+                a_num[ambos_num], h_num[ambos_num], rtol=TOL_REL, atol=TOL_ABS
+            )
+            mask.loc[ambos_num] = ~iguais_numerico
+
         if mask.any():
             registros.append(pd.DataFrame({
                 "Tabela": nome,
@@ -291,8 +324,7 @@ def detectar_alteracoes(nome, df_atual, df_homologar, chave_cols):
         return pd.DataFrame(columns=cols_saida)
 
     df_alt = pd.concat(registros, ignore_index=True)
-    info = at[chave_cols].reset_index()
-    df_alt = df_alt.merge(info, on="CHAVE", how="left")
+    df_alt["Chave_Campos"] = ", ".join(chave_cols)
     return df_alt[cols_saida]
 
 
@@ -356,6 +388,7 @@ def expandir_config(config):
     if tipo == "csv_plano":
         df_a = ler_arquivo(config["arquivo_atual"])
         df_h = ler_arquivo(config["arquivo_homologar"])
+
         df_a = normalizar_df(df_a)
         df_h = normalizar_df(df_h)
         return [(nome_base, df_a, df_h, config["chave"])]
@@ -421,6 +454,8 @@ def main():
         except (FileNotFoundError, ValueError, KeyError) as e:
             print(f"[ERRO] '{nome_base}': {e}")
             continue
+
+        print("TESTE")
 
         exportar = config.get("exportar_dados", True)
 
