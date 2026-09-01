@@ -34,6 +34,13 @@ TABELAS = [
         "arquivo_atual": "Relatorio_ANEEL_Atual.CSV",
         "arquivo_homologar": "Relatorio_ANEEL_a_Homologar.CSV",
         "chave": ["Matrícula"],
+    },
+    {
+        "nome": "DemandaSemCorrecao",
+        "tipo": "csv_plano",
+        "arquivo_atual": "DemandaSemCorrecao_Atual.CSV",
+        "arquivo_homologar": "DemandaSemCorrecao_a_Homologar.CSV",
+        "chave": ["Matrícula"],
     }
 ]
 
@@ -275,7 +282,7 @@ def detectar_alteracoes(nome, df_atual, df_homologar, chave_cols):
     Compara, registro a registro (chaves em comum), todas as colunas em comum
     e retorna as diferenças em formato longo. Vetorizado por coluna.
     """
-    cols_saida = ["Tabela", "CHAVE", "Chave_Campos", "Coluna", "Valor_Atual", "Valor_Homologar"]
+    cols_saida = ["Tabela", "CHAVE", "Chave_Campos", "Coluna", "Valor_Atual", "Valor_Homologar", "Erro_Percentual"]
 
     at = df_atual.drop_duplicates("CHAVE").set_index("CHAVE")
     ho = df_homologar.drop_duplicates("CHAVE").set_index("CHAVE")
@@ -312,12 +319,19 @@ def detectar_alteracoes(nome, df_atual, df_homologar, chave_cols):
             mask.loc[ambos_num] = ~iguais_numerico
 
         if mask.any():
+            # Erro percentual ((Homologar - Atual) / Atual * 100), só quando ambos os
+            # valores forem numéricos e o Atual for diferente de zero (senão fica NaN)
+            erro_pct = pd.Series(np.nan, index=at.index)
+            base_valida = ambos_num & (a_num != 0)
+            erro_pct.loc[base_valida] = (h_num[base_valida] - a_num[base_valida]) / a_num[base_valida] * 100
+
             registros.append(pd.DataFrame({
                 "Tabela": nome,
                 "CHAVE": at.index[mask],
                 "Coluna": col,
                 "Valor_Atual": a[mask].values,
                 "Valor_Homologar": h[mask].values,
+                "Erro_Percentual": erro_pct[mask].values,
             }))
 
     if not registros:
@@ -326,7 +340,6 @@ def detectar_alteracoes(nome, df_atual, df_homologar, chave_cols):
     df_alt = pd.concat(registros, ignore_index=True)
     df_alt["Chave_Campos"] = ", ".join(chave_cols)
     return df_alt[cols_saida]
-
 
 def comparar_unidade(nome, df_atual, df_homologar, chave_cols):
     """Executa todo o fluxo de comparação para uma unidade (tabela/seção)."""
@@ -386,7 +399,9 @@ def expandir_config(config):
     nome_base = config["nome"]
 
     if tipo == "csv_plano":
+        print(config["arquivo_atual"])
         df_a = ler_arquivo(config["arquivo_atual"])
+        print(config["arquivo_homologar"])
         df_h = ler_arquivo(config["arquivo_homologar"])
 
         df_a = normalizar_df(df_a)
