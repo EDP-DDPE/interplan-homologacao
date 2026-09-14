@@ -42,3 +42,5 @@ Tópico "Validação das curvas de carga e geração e da tabela de cabos"
 É necessário colar os arquivos gerados "Curvas_Atual.CSV" e "Curvas_a_Homologar.CSV" na pasta aonde o código main.py está e rodar executar.bat .
 O código irá gerar um arquivo "Relatorio_Homologacao.xlsx" na pasta em que o main.py está com as seguintes abas: Resumo (contém as principais informações sobre as tabelas analisadas); Validacao_Coluna que contém uma análise se as tabelas contém as mesmas colunas e na mesma ordem; Diferencas indica se alguma informação foi removida ou incluída; Alteracoes indica todas as alterações que aconteceram, indicando o que estava antes e o valor atual; Alteracoes por coluna mostra a quantidade de alterações por coluna. O arquivo traz também as tabelas analisadas. Vale ressaltar que a tabela de curvas é tratada então em Resultado ela já vem da forma que foi analisada (ou seja tratada, não do jeito que veio do interplan...).
 
+Para os arquivos de Chaves é para seguir o mesmo passo a passo que o de Curvas, considerando que os arquivos serão salvos necessariamente com os nomes "Curvas_Atual.CSV" e "Curvas_a_Homologar.CSV".
+
