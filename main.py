@@ -49,12 +49,27 @@ TABELAS = [
         "arquivo_homologar": "DemandaComCorrecao_a_Homologar.CSV",
         "chave": ["Matrícula"],
     },
-        {
+    {
         "nome": "Chaves",
         "tipo": "csv_plano",
         "arquivo_atual": "Chaves_Atual.CSV",
         "arquivo_homologar": "Chaves_a_Homologar.CSV",
         "chave": ["Chave"],
+    },
+    {
+        "nome": "RelDiagCirc",
+        "tipo": "RelDiagCirc",
+        "arquivo_atual": "RelDiagCirc_Atual.csv",
+        "arquivo_homologar": "RelDiagCirc_a_Homologar.csv",
+        "chave_1": ["Circuito"], # Para tabela: Relatório Diagnóstico Alimentadores + Chaves de Socorro
+        "chave_2": ["Código Socorro"] # Para tabela: Chaves de socorro
+    },
+    {
+        "nome": "RelatorioPosSimulacao",
+        "tipo": "RelatorioPosSimulacao",
+        "arquivo_atual": "RelatorioPosSimulacao_Atual.csv",
+        "arquivo_homologar": "RelatorioPosSimulacao_a_Homologar.csv",
+        "chave": ["Circ1","Circ2"]
     }
 ]
 
@@ -187,6 +202,118 @@ def parse_arquivo_secionado(caminho):
         secoes[secao] = df
     return secoes
 
+def parse_rel_diag_circ(caminho):
+    """
+    Lê o export RelDiagCirc, que contém dois blocos de tabela separados por
+    linhas em branco:
+      1) Relatório Diagnóstico Alimentadores + Chaves de Socorro (chave: Circuito)
+      2) Chaves de Socorro (chave: Código Socorro)
+    Linhas de observação (iniciadas por '*') e títulos de seção (blocos de
+    uma única linha) são ignorados.
+    """
+    caminho = Path(caminho)
+    if not caminho.exists():
+        raise FileNotFoundError(f"Arquivo não encontrado: {caminho}")
+
+    with open(caminho, encoding=CSV_ENCODING) as f:
+        linhas_brutas = [linha.rstrip("\r\n") for linha in f]
+
+    # Agrupa em blocos separados por linhas em branco
+    blocos, bloco_atual = [], []
+    for linha in linhas_brutas:
+        if linha.strip() == "":
+            if bloco_atual:
+                blocos.append(bloco_atual)
+                bloco_atual = []
+        else:
+            bloco_atual.append(linha)
+    if bloco_atual:
+        blocos.append(bloco_atual)
+
+    def eh_observacao(linha):
+        return linha.strip().startswith("*")
+
+    # Mantém só blocos com cabeçalho + pelo menos 1 linha de dado real
+    blocos_dados = []
+    for bloco in blocos:
+        uteis = [l for l in bloco if not eh_observacao(l)]
+        if len(uteis) >= 2:
+            blocos_dados.append(uteis)
+
+    if len(blocos_dados) < 2:
+        raise ValueError(
+            f"Não foi possível identificar as duas tabelas (Circuitos e Chaves de "
+            f"Socorro) em: {caminho}"
+        )
+
+    def split_linha(linha, ncols=None):
+        campos = linha.split(CSV_SEP)
+        if campos and campos[-1].strip() == "":
+            campos = campos[:-1]
+        campos = [c.strip() for c in campos]
+        if ncols is not None:
+            campos = (campos + [""] * ncols)[:ncols]
+        return campos
+
+    def bloco_para_df(bloco):
+        cabecalho = split_linha(bloco[0])
+        linhas = [split_linha(l, ncols=len(cabecalho)) for l in bloco[1:]]
+        return pd.DataFrame(linhas, columns=cabecalho, dtype=str)
+
+    df_circuitos = bloco_para_df(blocos_dados[0])
+    df_chaves_socorro = bloco_para_df(blocos_dados[1])
+
+    return df_circuitos, df_chaves_socorro
+
+def parse_relatorio_pos_simulacao(caminho):
+    """
+    Lê o RelatorioPosSimulacao, cujo cabeçalho ocupa duas linhas:
+      - 1ª linha: agrupador (ex.: 'Estado Original', 'Estado Novo'), vazio
+        para as colunas que não pertencem a nenhum grupo.
+      - 2ª linha: nome da coluna dentro do grupo.
+    Várias colunas se repetem entre os grupos (ex.: 'PerdasCirc1 [kWh]'
+    aparece em 'Estado Original' e em 'Estado Novo'), então o nome final é
+    'Grupo_NomeColuna' quando há grupo, e apenas 'NomeColuna' quando não há.
+    """
+    caminho = Path(caminho)
+    if not caminho.exists():
+        raise FileNotFoundError(f"Arquivo não encontrado: {caminho}")
+
+    with open(caminho, encoding=CSV_ENCODING) as f:
+        linhas = [linha.rstrip("\r\n") for linha in f if linha.strip() != ""]
+
+    if len(linhas) < 3:
+        raise ValueError(
+            f"Estrutura inesperada (esperado: grupo + cabeçalho + dados) em: {caminho}"
+        )
+
+    def split_linha(linha):
+        campos = linha.split(CSV_SEP)
+        if campos and campos[-1].strip() == "":
+            campos = campos[:-1]
+        return [c.strip() for c in campos]
+
+    grupos = split_linha(linhas[0])
+    subcolunas = split_linha(linhas[1])
+
+    ncols = len(subcolunas)
+    grupos = (grupos + [""] * ncols)[:ncols]
+
+    colunas = []
+    vistos = {}
+    for grupo, sub in zip(grupos, subcolunas):
+        nome = f"{grupo}_{sub}" if grupo else sub
+        if nome in vistos:  # segurança extra, caso ainda haja repetição
+            vistos[nome] += 1
+            nome = f"{nome}_{vistos[nome]}"
+        else:
+            vistos[nome] = 0
+        colunas.append(nome)
+
+    dados = [split_linha(l) for l in linhas[2:]]
+    dados = [(l + [""] * ncols)[:ncols] for l in dados]
+
+    return pd.DataFrame(dados, columns=colunas, dtype=str)
 
 def montar_chave(df, colunas_chave):
     """Concatena as colunas-chave em uma única string 'valor1|valor2|...'."""
@@ -431,6 +558,25 @@ def expandir_config(config):
         df_a = normalizar_df(df_a)
         df_h = normalizar_df(df_h)
 
+        return [(nome_base, df_a, df_h, config["chave"])]
+    
+    if tipo == "RelDiagCirc":
+        circ_a, chaves_a = parse_rel_diag_circ(config["arquivo_atual"])
+        circ_h, chaves_h = parse_rel_diag_circ(config["arquivo_homologar"])
+
+        circ_a, circ_h = normalizar_df(circ_a), normalizar_df(circ_h)
+        chaves_a, chaves_h = normalizar_df(chaves_a), normalizar_df(chaves_h)
+
+        return [
+            (f"{nome_base}_Alimentadores", circ_a, circ_h, config["chave_1"]),
+            (f"{nome_base}_ChavesSocorro", chaves_a, chaves_h, config["chave_2"]),
+        ]
+
+    if tipo == "RelatorioPosSimulacao":
+        df_a = parse_relatorio_pos_simulacao(config["arquivo_atual"])
+        df_h = parse_relatorio_pos_simulacao(config["arquivo_homologar"])
+        df_a = normalizar_df(df_a)
+        df_h = normalizar_df(df_h)
         return [(nome_base, df_a, df_h, config["chave"])]
 
     raise ValueError(f"Tipo de config desconhecido: {tipo}")
