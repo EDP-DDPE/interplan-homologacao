@@ -70,6 +70,13 @@ TABELAS = [
         "arquivo_atual": "RelatorioPosSimulacao_Atual.csv",
         "arquivo_homologar": "RelatorioPosSimulacao_a_Homologar.csv",
         "chave": ["Circ1","Circ2"]
+    },
+    {
+        "nome": "Curto_Chaves",
+        "tipo": "csv_plano",
+        "arquivo_atual": "Curto_Atual.CSV",
+        "arquivo_homologar": "Curto_a_Homologar.CSV",
+        "chave": ["Alimentador","Código de chave"]
     }
 ]
 
