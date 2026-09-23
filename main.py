@@ -72,11 +72,11 @@ TABELAS = [
         "chave": ["Circ1","Circ2"]
     },
     {
-        "nome": "Curto_Chaves",
+        "nome": "Curto_Barras",
         "tipo": "csv_plano",
-        "arquivo_atual": "Curto_Atual.CSV",
-        "arquivo_homologar": "Curto_a_Homologar.CSV",
-        "chave": ["Alimentador","Código de chave"]
+        "arquivo_atual": "CurtoBarras_Atual.CSV",
+        "arquivo_homologar": "CurtoBarras_a_Homologar.CSV",
+        "chave": ["ID da barra","Código da barra"]
     },
     {
         "nome": "RelatorioANEEL_Fluxo",
