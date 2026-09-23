@@ -78,6 +78,13 @@ TABELAS = [
         "arquivo_homologar": "Curto_a_Homologar.CSV",
         "chave": ["Alimentador","Código de chave"]
     },
+    {
+        "nome": "RelatorioANEEL_Fluxo",
+        "tipo": "csv_plano",
+        "arquivo_atual": "RelatorioANEEL_Fluxo_Atual.CSV",
+        "arquivo_homologar": "RelatorioANEEL_Fluxo_a_Homologar.CSV",
+        "chave": ["Matrícula"],
+    },
 ]
 
 ARQUIVO_SAIDA = "Relatorio_Homologacao.xlsx"
