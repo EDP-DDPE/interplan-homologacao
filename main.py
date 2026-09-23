@@ -77,7 +77,7 @@ TABELAS = [
         "arquivo_atual": "Curto_Atual.CSV",
         "arquivo_homologar": "Curto_a_Homologar.CSV",
         "chave": ["Alimentador","Código de chave"]
-    }
+    },
 ]
 
 ARQUIVO_SAIDA = "Relatorio_Homologacao.xlsx"
