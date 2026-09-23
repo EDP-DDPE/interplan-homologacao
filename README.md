@@ -183,4 +183,4 @@ O arquivo **`Relatorio_Homologacao.xlsx`** é criado na **mesma pasta do `main.p
 ---
 
 <p align="center">📌 <i>Ferramenta desenvolvida para apoio à homologação de versões do Interplan.</i></p>
-````
+
