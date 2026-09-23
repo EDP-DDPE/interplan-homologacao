@@ -85,7 +85,7 @@ Exporte as tabelas do Interplan nas duas versões (**atual** e **a homologar**) 
 | **Relatório ANEEL – Fluxo** | `RelatorioANEEL_Fluxo_Atual.CSV` | `RelatorioANEEL_Fluxo_a_Homologar.CSV` | Matrícula |
 | **Demanda sem correção** | `DemandaSemCorrecao_Atual.CSV` | `DemandaSemCorrecao_a_Homologar.CSV` | Matrícula |
 | **Demanda com correção** | `DemandaComCorrecao_Atual.CSV` | `DemandaComCorrecao_a_Homologar.CSV` | Matrícula |
-| **Curto-circuito nas chaves** | `Curto_Atual.CSV` | `Curto_a_Homologar.CSV` | Alimentador + Código de chave |
+| **Curto-circuito nas barras** | `CurtoBarras_Atual.CSV` | `CurtoBarras_a_Homologar.CSV` | Alimentador + Código de chave |
 | **Relatório Diagnóstico de Circuitos** | `RelDiagCirc_Atual.csv` | `RelDiagCirc_a_Homologar.csv` | Circuito / Código Socorro |
 | **Relatório Pós-Simulação** | `RelatorioPosSimulacao_Atual.csv` | `RelatorioPosSimulacao_a_Homologar.csv` | Circ1 + Circ2 |
 
