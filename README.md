@@ -1,4 +1,3 @@
-````markdown
 # 🔍 Ferramenta de Homologação do Interplan
 
 > Compara automaticamente as tabelas exportadas do **Interplan** entre a **versão atual** e a **versão a homologar** e gera um relatório consolidado em Excel com todas as diferenças encontradas.
