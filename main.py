@@ -25,7 +25,7 @@ TABELAS = [
         "tipo": "secionado",
         "arquivo_atual": "Curvas_Atual.CSV",
         "arquivo_homologar": "Curvas_a_Homologar.CSV",
-        "chave": ["Nome","Classificacao_Dia"],
+        "chave": ["ID_CURVA_TIPICA","Pontos_Curva"],
         "exportar_dados": True,
     },
     {
@@ -117,9 +117,27 @@ def ler_arquivo(caminho):
 
 def unir_secoes_curvas(secoes: dict) -> pd.DataFrame:
 
-    categoria = secoes["CATEGORIA"]
-    curva_tipica = secoes["CURVA_TIPICA"]
-    curva_pontos = secoes["CURVA_PONTOS"]
+    # O export do INTERPLAN pode repetir blocos inteiros (ex.: curvas de geração
+    # 2000-2005 aparecem duas vezes em todas as seções). Sem remover essas linhas
+    # idênticas, os merges abaixo multiplicam cada ponto (2 x 2 = 4 linhas por chave).
+    categoria = secoes["CATEGORIA"].drop_duplicates().copy()
+    curva_tipica = secoes["CURVA_TIPICA"].drop_duplicates().copy()
+    curva_pontos = secoes["CURVA_PONTOS"].drop_duplicates().copy()
+
+    # Chaves que continuam repetidas têm valores DIFERENTES. Mantém a última
+    # ocorrência (a mais recente no export) e avisa no console.
+    def _resolver_conflitos(nome_secao, df_sec, chave_sec):
+        conflitos = df_sec[df_sec.duplicated(chave_sec, keep=False)]
+        if conflitos.empty:
+            return df_sec
+        print(f"[AVISO] {nome_secao}: chave {chave_sec} repetida com valores diferentes "
+              f"(mantida a última ocorrência):")
+        print(conflitos.to_string(index=False))
+        return df_sec.drop_duplicates(chave_sec, keep="last").copy()
+
+    categoria = _resolver_conflitos("CATEGORIA", categoria, ["ID_CURVA_TIPICA"])
+    curva_tipica = _resolver_conflitos("CURVA_TIPICA", curva_tipica, ["ID_CURVA_TIPICA"])
+    curva_pontos = _resolver_conflitos("CURVA_PONTOS", curva_pontos, ["ID_CURVA_TIPICA", "Pontos_Curva"])
 
     # Identificando primeiro ID de curvas de geração
     curvas_G = categoria[categoria["Campo10"].astype(str) != "0"]
